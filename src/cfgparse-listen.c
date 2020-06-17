@@ -277,6 +277,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			curproxy->to_log = defproxy.to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
 			curproxy->max_out_conns = defproxy.max_out_conns;
+
+			curproxy->clitcpkaintvl  = defproxy.clitcpkaintvl;
+			curproxy->clitcpkaprobes = defproxy.clitcpkaprobes;
+			curproxy->clitcpkatime   = defproxy.clitcpkatime;
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
@@ -337,6 +341,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->conn_src.tproxy_addr = defproxy.conn_src.tproxy_addr;
 #endif
 			curproxy->load_server_state_from_file = defproxy.load_server_state_from_file;
+
+			curproxy->srvtcpkaintvl  = defproxy.srvtcpkaintvl;
+			curproxy->srvtcpkaprobes = defproxy.srvtcpkaprobes;
+			curproxy->srvtcpkatime   = defproxy.srvtcpkatime;
 		}
 
 		if (curproxy->cap & PR_CAP_FE) {
@@ -3017,6 +3025,54 @@ stats_error_parsing:
 			 file, linenum, "usesrc", "source");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
+	}
+	else if (!strcmp(args[0], "tcpkaintvl")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (curproxy->cap & PR_CAP_FE)
+			curproxy->clitcpkaintvl = atol(args[1]);
+		if (curproxy->cap & PR_CAP_BE)
+			curproxy->srvtcpkaintvl = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+	}
+	else if (!strcmp(args[0], "tcpkaprobes")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (curproxy->cap & PR_CAP_FE)
+			curproxy->clitcpkaprobes = atol(args[1]);
+		if (curproxy->cap & PR_CAP_BE)
+			curproxy->srvtcpkaprobes = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+	}
+	else if (!strcmp(args[0], "tcpkatime")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (curproxy->cap & PR_CAP_FE)
+			curproxy->clitcpkatime = atol(args[1]);
+		if (curproxy->cap & PR_CAP_BE)
+			curproxy->srvtcpkatime = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 	}
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "

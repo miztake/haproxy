@@ -570,6 +570,71 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 	return 0;
 }
 
+/* This function parses "{srv|cli}tcpka*" statements
+ *
+ */
+static int proxy_parse_tcp_ka(char **args, int section, struct proxy *proxy,
+                              struct proxy *defpx, const char *file, int line,
+                              char **err)
+{
+	int retval;
+	char *res;
+	unsigned int val;
+
+	retval = 0;
+
+	if (*args[1] < 0) {
+		memprintf(err, "'%s' expects expects an integer value (if 0, use kernel parameter)", args[0]);
+		return -1;
+	}
+
+	val = strtol(args[1], &res, 0);
+	if (*res) {
+		memprintf(err, "'%s' : unexpected character '%c' in integer value '%s'", args[0], *res, args[1]);
+		return -1;
+	}
+
+	if (!strncmp(args[0], "cli", 3)) {
+		if (!(proxy->cap & PR_CAP_FE)) {
+			memprintf(err, "%s will be ignored because %s '%s' has no frontend capability",
+			          args[0], proxy_type_str(proxy), proxy->id);
+			retval = 1;
+		}
+
+		if (!strcmp(args[0], "clitcpkaintvl")) {
+			proxy->clitcpkaintvl = val;
+		} else if (!strcmp(args[0], "clitcpkaprobes")) {
+			proxy->clitcpkaprobes = val;
+		} else if (!strcmp(args[0], "clitcpkatime")) {
+			proxy->clitcpkatime = val;
+		} else {
+			/* unreachable */
+			memprintf(err, "'%s': unknown keyword", args[0]);
+			return -1;
+		}
+	} else { /* srv */
+		if (!(proxy->cap & PR_CAP_BE)) {
+			memprintf(err, "%s will be ignored because %s '%s' has no backend capability",
+			          args[0], proxy_type_str(proxy), proxy->id);
+			retval = 1;
+		}
+
+		if (!strcmp(args[0], "srvtcpkaintvl")) {
+			proxy->srvtcpkaintvl = val;
+		} else if (!strcmp(args[0], "srvtcpkaprobes")) {
+			proxy->srvtcpkaprobes = val;
+		} else if (!strcmp(args[0], "srvtcpkatime")) {
+			proxy->srvtcpkatime = val;
+		} else {
+			/* unreachable */
+			memprintf(err, "'%s': unknown keyword", args[0]);
+			return -1;
+		}
+	}
+
+	return retval;
+}
+
 /* This function inserts proxy <px> into the tree of known proxies. The proxy's
  * name is used as the storing key so it must already have been initialized.
  */
@@ -1675,6 +1740,12 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "max-keep-alive-queue", proxy_parse_max_ka_queue },
 	{ CFG_LISTEN, "declare", proxy_parse_declare },
 	{ CFG_LISTEN, "retry-on", proxy_parse_retry_on },
+	{ CFG_LISTEN, "clitcpkaintvl", proxy_parse_tcp_ka },
+	{ CFG_LISTEN, "clitcpkaprobes", proxy_parse_tcp_ka },
+	{ CFG_LISTEN, "clitcpkatime", proxy_parse_tcp_ka },
+	{ CFG_LISTEN, "srvtcpkaintvl", proxy_parse_tcp_ka },
+	{ CFG_LISTEN, "srvtcpkaprobes", proxy_parse_tcp_ka },
+	{ CFG_LISTEN, "srvtcpkatime", proxy_parse_tcp_ka },
 	{ 0, NULL, NULL },
 }};
 
