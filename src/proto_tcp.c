@@ -379,8 +379,18 @@ int tcp_connect_server(struct connection *conn, int flags)
 		return SF_ERR_INTERNAL;
 	}
 
-	if (be->options & PR_O_TCP_SRV_KA)
+	if (be->options & PR_O_TCP_SRV_KA) {
 		setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one));
+
+		if (be->srvtcpka_intvl)
+			setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &be->srvtcpka_intvl, sizeof(be->srvtcpka_intvl));
+
+		if (be->srvtcpka_probes)
+			setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &be->srvtcpka_probes, sizeof(be->srvtcpka_probes));
+
+		if (be->srvtcpka_time)
+			setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &be->srvtcpka_time, sizeof(be->srvtcpka_time));
+	}
 
 	/* allow specific binding :
 	 * - server-specific at first

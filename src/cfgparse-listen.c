@@ -277,6 +277,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			curproxy->to_log = defproxy.to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
 			curproxy->max_out_conns = defproxy.max_out_conns;
+
+			curproxy->clitcpka_intvl  = defproxy.clitcpka_intvl;
+			curproxy->clitcpka_probes = defproxy.clitcpka_probes;
+			curproxy->clitcpka_time   = defproxy.clitcpka_time;
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
@@ -337,6 +341,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->conn_src.tproxy_addr = defproxy.conn_src.tproxy_addr;
 #endif
 			curproxy->load_server_state_from_file = defproxy.load_server_state_from_file;
+
+			curproxy->srvtcpka_intvl  = defproxy.srvtcpka_intvl;
+			curproxy->srvtcpka_probes = defproxy.srvtcpka_probes;
+			curproxy->srvtcpka_time   = defproxy.srvtcpka_time;
 		}
 
 		if (curproxy->cap & PR_CAP_FE) {
@@ -3017,6 +3025,96 @@ stats_error_parsing:
 			 file, linenum, "usesrc", "source");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
+	}
+	else if (!strcmp(args[0], "tcpka-intvl")) {
+		unsigned int tcpka_intvl;
+		const char *res;
+		if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		res = parse_time_err(args[1], &tcpka_intvl, TIME_UNIT_S);
+		if (res == PARSE_TIME_OVER) {
+			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 s (~68 years).\n",
+				 file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (res == PARSE_TIME_UNDER) {
+			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 s.\n",
+				 file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (res) {
+			ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
+				 file, linenum, *res, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (curproxy->cap & PR_CAP_FE)
+			curproxy->clitcpka_intvl = tcpka_intvl;
+		if (curproxy->cap & PR_CAP_BE)
+			curproxy->srvtcpka_intvl = tcpka_intvl;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+	}
+	else if (!strcmp(args[0], "tcpka-probes")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (curproxy->cap & PR_CAP_FE)
+			curproxy->clitcpka_probes = atol(args[1]);
+		if (curproxy->cap & PR_CAP_BE)
+			curproxy->srvtcpka_probes = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+	}
+	else if (!strcmp(args[0], "tcpka-time")) {
+		unsigned int tcpka_time;
+		const char *res;
+		if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		res = parse_time_err(args[1], &tcpka_time, TIME_UNIT_S);
+		if (res == PARSE_TIME_OVER) {
+			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 s (~68 years).\n",
+				 file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (res == PARSE_TIME_UNDER) {
+			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 s.\n",
+				 file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (res) {
+			ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
+				 file, linenum, *res, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (curproxy->cap & PR_CAP_FE)
+			curproxy->clitcpka_time = tcpka_time;
+		if (curproxy->cap & PR_CAP_BE)
+			curproxy->srvtcpka_time = tcpka_time;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 	}
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
